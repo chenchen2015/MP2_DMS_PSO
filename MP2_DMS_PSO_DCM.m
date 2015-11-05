@@ -12,7 +12,7 @@ function [outIm,PSNR] = MP2_DMS_PSO_DCM(~)
 
 % Paper: C. Chen, J.J. Liang, B.Y. Qu, and B. Niu, "Using Dynamic Multi-Swarm 
 %        Particle Swarm Optimizer to Improve the Image Sparse Decomposition 
-%        Based on Matching Pursuit," ICIC 2013, LNAI 7996, pp. 587–595, 2013.
+%        Based on Matching Pursuit," ICIC 2013, LNAI 7996, pp. 587-595, 2013.
 % 
 % 
 % Copy Right - Chen Chen
@@ -27,11 +27,11 @@ home
 SHOW_FIGURE = 1;
 
 %% Image Acquisition
-% filename = uigetfile(...
-%     {'*.jpg;*.bmp;*.png;*.jpeg;*.tif;*.gif',...
-%     'All Supported Image File(*.jpg,*.bmp,*.png,*.jpeg,*.tif,*.gif)'},...
-%     'Pick a Image file to open ...');
-filename = 'lena64.bmp';
+filename = uigetfile(...
+    {'*.jpg;*.bmp;*.png;*.jpeg;*.tif;*.gif',...
+    'All Supported Image File(*.jpg,*.bmp,*.png,*.jpeg,*.tif,*.gif)'},...
+    'Pick a Image file to open ...');
+% filename = 'lena64.bmp';
 try
     Im = imread(filename);
 catch msg
@@ -43,7 +43,9 @@ catch msg
         otherwise
             disp(['Error : Unknown Error Message Identifier - ' msg.identifier]);
     end
-    disp('Program Terminated because Error Encountered !!');
+    disp('Loading default image: Lena64 as a demo...');
+    filename = 'lena64.bmp';
+    Im = imread(filename);
     return
 end
 %% Display the Original Signal
