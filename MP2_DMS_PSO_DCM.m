@@ -48,16 +48,15 @@ catch msg
     Im = imread(filename);
     return
 end
-%% Display the Original Signal
-if SHOW_FIGURE
-    figure,subplot(221),title('Origin Signal'),imshow(Im,[]);
-end
 %% Start Global Time Counting
 tstart = tic;
 %% Determine the Decomposition Parameters
 % Matching Pursuit Processing iterative number
 iterative_number = 200;
 % Convert the 2-D Image[H,L] to 1-D[1,H*L] 
+if length(size(Im)) > 2
+    Im = rgb2gray(Im(:, :, 1:3));
+end
 Im = double(Im);
 [H,L] = size(Im);
 N = H * L;
@@ -81,6 +80,27 @@ sty_max = NN * log2(L) - NN;
 %% Wipe off the DC Vector
 signal_reconstruct = (1/N) * sum(signal);
 signal_r = signal - signal_reconstruct;
+
+%% Initialize plots
+if SHOW_FIGURE
+    figure(1); clf;
+    subplot(221);
+        imshow(Im, []);
+        title('Input Image');
+    subplot(222);
+        h_gabor = imshow(Im, []);
+        title('Current Gabor atom used');
+    ax_perf = subplot(223);
+        h_perf = plot(0, 'LineWidth', 4);
+        title('Performance');
+        xlabel('Number of Gabor atoms used');
+        ylabel('Reconstruction accuracy in PSNR [dB]');
+        grid on;
+    subplot(224);
+        h_im = imshow(Im, []);
+        title('Reconstructed Signal');
+end
+
 %% The MP Process
 for n = 1:iterative_number
     tic
@@ -92,19 +112,20 @@ for n = 1:iterative_number
     % Reducing the best atom part from the residual signal and adding it to
     % the reconstructed signal
     % g is the best atom
-    signal_reconstruct = signal_reconstruct + proj * g;
-    signal_r = signal_r - proj * g;
+    atom = proj * g;
+    signal_reconstruct = signal_reconstruct + atom;
+    signal_r = signal_r - atom;
     PSNR(n) = psnr(signal, signal_reconstruct);
     % at each step of MP, we display the figures of the orignal signal, the
     % best atom selected, the residual signal and the reconstructed signal
     % at window 1,2,3,4, respectively
     if SHOW_FIGURE
-        subplot(222),title('Current Best Atom'),imshow((reshape(g,H,L)),[]);
-    %     subplot(222),title('Current Best Atom'),imshow(g);
-        subplot(223),title('Residual Signal'),imshow((reshape(signal_r,H,L)),[]);
-        subplot(223),title('Residual Signal'),plot(PSNR(1:n)),...
-            xlabel('Number of Atoms'),ylabel('PSNR / dB'),axis([1 n+2 0 40]);
-        subplot(224),title('Reconstruct Signal'),imshow((reshape(signal_reconstruct,H,L)),[]);
+        plot_g = atom - min(atom);
+        h_gabor.CData = reshape(plot_g, H, L) * 2;
+        h_perf.YData = PSNR(1:n);
+        ax_perf.XLim = [1 n+2];
+        ax_perf.YLim = [min(PSNR(1:n))-1, max(PSNR(1:n))+3];
+        h_im.CData = reshape(signal_reconstruct, H, L);
         drawnow;   
     end
     % n is the MP process number, or the number of atoms selected
@@ -195,7 +216,7 @@ DMS = 1; % DMS Strategy Switch
 DCM = 1; % Discrete Coefficient Mutatuion Strategy Switch
          % |0 - OFF - Using Std-PSO
          % |1 - ON  - Using DCM
-LDDR = 0;% Linear Decreasing DMS Ratio Strategy Switch
+LDDR = 1;% Linear Decreasing DMS Ratio Strategy Switch
          % |0 - OFF - Using Std-PSO
          % |1 - ON  - Using LDDR
 ScaleFactorDPM = 1;
@@ -205,9 +226,9 @@ FixRatioDMS = 0.6;
 %% PSO Parameters
 Dim = 5;
 % 测试不同Group_Num影响
-Group_Num = 5;
-Group_Bird_Num = 3;
-Regroup_Era = 3;
+Group_Num = 7;
+Group_Bird_Num = 5;
+Regroup_Era = 4;
 Num_Birds = Group_Num * Group_Bird_Num;
 Num_Birds = Num_Birds * DMS + (1 - DMS) * 30;
 % Strategy Select
@@ -249,7 +270,6 @@ for i = 1:Group_Num
     gBest_proj = pBest_proj( GroupID(i,gBestID) );
     gBestPosi(i,:) = pBestPosi(GroupID(i,gBestID),:);%initialize the gbest and the gbest's fitness value
 end
-% fprintf('Era :   0 ; gBest %2.4f\n',min(gBest_res));
 %% Loop for Dynamic Multi-Swarm
 Era = 0;
 FitCount = 0;
@@ -270,7 +290,7 @@ while FitCount < DMS_FES
         % 超出边界 : 2.在边界附近邻域内随机初始化
         tmp_Scale_H = Scale_H - round( rand(1,Dim) .* Bound_Scale);
         tmp_Scale_L = Scale_L + round( rand(1,Dim) .* Bound_Scale);
-        % Strategy #3 Inertia Boundary only for Theta
+        % Strategy #3 Apply inertial boundary only for theta
 %         Birds(j,1) = (Birds(j,1) > theta_max) * (Birds(j,1) - theta_max) + (Birds(j,1) <= theta_max) * Birds(j,1);
 %         Birds(j,1) = (Birds(j,1) < theta_min) * (Birds(j,1) + theta_max) + (Birds(j,1) >= theta_min) * Birds(j,1);
 %         Birds(j,1) = (Birds(j,1) > theta_max) * theta_max + (Birds(j,1) <= theta_max) * Birds(j,1);
@@ -288,11 +308,13 @@ while FitCount < DMS_FES
         Proj_Temp = signal_r * g';
         Res_Temp  = abs( Proj_Temp );
         if pBest_res(j) < Res_Temp
+            % update pBest
             pBest_res(j) = Res_Temp;
             pBest_proj(j) = Proj_Temp;
             pBestPosi(j,:) = Birds(j,:);
         end
         if gBest_res(Posi_Group(j)) < pBest_res(j)
+            % update gBest
             gBest_res(Posi_Group(j)) = pBest_res(j);
             gBest_proj(Posi_Group(j)) = pBest_proj(j);
             gBestPosi(Posi_Group(j),:) = pBestPosi(j,:);
@@ -305,10 +327,10 @@ while FitCount < DMS_FES
             Posi_Group( GroupID(k,:) ) = k; 
             [gBest_res(k),gBestID] = max( pBest_res( GroupID(k,:) ) );
             gBest_proj = pBest_proj( GroupID(k,gBestID) );
-            gBestPosi(k,:) = pBestPosi(GroupID(k,gBestID),:);% Update the gbest and the gbest's fitness value
+            % Update the gbest and the gbest's fitness value
+            gBestPosi(k,:) = pBestPosi(GroupID(k,gBestID),:);
         end
     end
-%     fprintf('DMS - Era : %3d ; gBest %f\n',Era,max(gBest_res));
 end
 %% Loop for Standard Single Swarm
 [gBest_res,tempID] = sort(gBest_res);
@@ -330,7 +352,7 @@ while FitCount < MAX_FES
     % 超出边界 : 2.在边界附近邻域内随机初始化
     tmp_Scale_H = repmat(Scale_H,Num_Birds,1) - round( rand(Num_Birds,Dim) .* repmat(Bound_Scale,Num_Birds,1) );
     tmp_Scale_L = repmat(Scale_L,Num_Birds,1) + round( rand(Num_Birds,Dim) .* repmat(Bound_Scale,Num_Birds,1) );
-    % Strategy #3 Inertia Boundary only for Theta
+    % Strategy #3 Apply inertial boundary only for theta
 %     Birds(:,1) = ( Birds(:,1) > theta_max(ones(Num_Birds,1)) ) .* ( Birds(:,1) - theta_max(ones(Num_Birds,1)) ) + ( Birds(:,1) <= theta_max(ones(Num_Birds,1)) ) .* Birds(:,1);
 %     Birds(:,1) = ( Birds(:,1) < theta_min(ones(Num_Birds,1)) ) .* ( Birds(:,1) + theta_max(ones(Num_Birds,1)) ) + ( Birds(:,1) >= theta_min(ones(Num_Birds,1)) ) .* Birds(:,1);
 %     Birds(:,1) = ( Birds(:,1) > theta_max(ones(Num_Birds,1)) ) .* theta_max(ones(Num_Birds,1)) + ( Birds(:,1) <= theta_max(ones(Num_Birds,1)) ) .* Birds(:,1);
@@ -355,5 +377,4 @@ end
 proj = gBest_proj;
 gr = Asym_Atom_GA(H,L,gBestPosi,1);
 fprintf('Era : %3d ; gBest %f\n',Era,gBest_res);
-% disp(gBestPosi);
 end
